@@ -13,6 +13,7 @@
 #define MAX_PORT_LENGTH 6
 #define MAX_IP_LENGTH 16
 #define MAX_MESSAGE_LENGTH 500
+#define MAX_TIME_LENGTH 30
 
 #include <windows.h>
 #include <winsock2.h>

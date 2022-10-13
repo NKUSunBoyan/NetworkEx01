@@ -188,11 +188,19 @@ int bash() {
 					break;
 				message_end++;
 			}
-			char message_buf[MAX_MESSAGE_LENGTH];
-			memset(message_buf, 0, MAX_MESSAGE_LENGTH);
+			char message_buf[MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2];
+			memset(message_buf, 0, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2);
 			message_buf[0] = '#';
-			strncpy(message_buf + 1, buf + i, message_end);
-			int iSendResult = 0;
+			strncpy(message_buf + 1, buf + i, message_end - i);
+
+			char timestamp[MAX_TIME_LENGTH];
+			memset(timestamp, 0, MAX_TIME_LENGTH);
+			SYSTEMTIME time;
+			GetLocalTime(&time);
+			sprintf(timestamp, "%hd/%hd/%hd %hd:%hd:%hd", time.wYear, time.wMonth, time.wDay, time.wHour, time.wMinute, time.wSecond);
+			message_buf[message_end - i + 2] = '^';
+			strncpy(message_buf + message_end - i + 3, timestamp, MAX_TIME_LENGTH);
+			int iSendResult = 0; 
 			if (server != NULL && server->isConnected) {
 				iSendResult = server->send_message(message_buf);
 			} else if (client != NULL && client->isConnected) {

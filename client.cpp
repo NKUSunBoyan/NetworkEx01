@@ -86,7 +86,7 @@ int Client::start_connect()
 	// Resolve the server address and port
 	int iResult = getaddrinfo(this->ip, this->port, &this->hints, &this->result);
 	if (iResult != 0) {
-		printf("getaddrinfo failed with error: %d\n", iResult);
+		printf("[ERROR]Getaddrinfo failed with error: %d\n", iResult);
 		return 1;
 	}
 
@@ -96,7 +96,7 @@ int Client::start_connect()
 		// Create a SOCKET for connecting to server
 		this->ConnectSocket = socket(this->ptr->ai_family, this->ptr->ai_socktype, this->ptr->ai_protocol);
 		if (this->ConnectSocket == INVALID_SOCKET) {
-			printf("socket failed with error: %ld\n", WSAGetLastError());
+			printf("[ERROR]Socket failed with error: %ld\n", WSAGetLastError());
 			return 1;
 		}
 
@@ -113,25 +113,25 @@ int Client::start_connect()
 	freeaddrinfo(this->result);
 
 	if (this->ConnectSocket == INVALID_SOCKET) {
-		printf("Unable to connect to server!\n");
+		printf("[ERROR]Unable to connect to server!\n");
 		return 1;
 	}
 
 	int iSendResult = send(this->ConnectSocket, this->name, MAX_NAME_LENGTH, 0);
 	if (iSendResult == SOCKET_ERROR) {
-		printf("send failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
 		closesocket(this->ConnectSocket);
 		return 1;
 	}
 
 	iResult = recv(this->ConnectSocket, this->server_name, MAX_NAME_LENGTH, 0);
 	if (iResult > 0) {
-		printf("Bytes received: %d\n", iResult);
+		/*printf("[INFO]Bytes received: %d\n", iResult);*/
 	}
 	else if (iResult == 0)
-		printf("Connection closing...\n");
+		printf("[INFO]Connection closing...\n");
 	else {
-		printf("recv failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Recv failed with error: %d\n", WSAGetLastError());
 		closesocket(this->ConnectSocket);
 		return 1;
 	}
@@ -143,17 +143,26 @@ int Client::start_connect()
 void Client::listen_message(Client* client)
 {
 	int iResult = 0;
-	char recvbuf[MAX_MESSAGE_LENGTH];
+	char recvbuf[MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2];
 	// Receive until the peer shuts down the connection
 	do {
 
-		iResult = recv(client->ConnectSocket, recvbuf, MAX_MESSAGE_LENGTH, 0);
+		iResult = recv(client->ConnectSocket, recvbuf, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 		if (iResult > 0) {
 			if (recvbuf[0] == '@') {
 				strcpy_s(client->server_name, MAX_NAME_LENGTH, recvbuf + 1);
 			}
 			else if (recvbuf[0] == '#') {
-				printf("%s: %s\n", client->server_name, recvbuf + 1);
+				int i = 0;
+				char timestamp[MAX_TIME_LENGTH];
+				memset(timestamp, 0, MAX_TIME_LENGTH);
+				while (i < MAX_MESSAGE_LENGTH + 1) {
+					if (recvbuf[i] == '\0' && recvbuf[i + 1] == '^')
+						break;
+					i++;
+				}
+				strcpy_s(timestamp, MAX_TIME_LENGTH, recvbuf + i + 2);
+				printf("%s@%s: %s\n", timestamp, client->server_name, recvbuf + 1);
 			}
 			else if (recvbuf[0] == '$') {
 				printf("[INFO]Server will disconnect, current client will close.\n");
@@ -184,9 +193,9 @@ void Client::listen_message(Client* client)
 			}
 		}
 		else if (iResult == 0)
-			printf("Connection closing...\n");
+			printf("[INFO]Connection closing...\n");
 		else {
-			printf("recv failed with error: %d\n", WSAGetLastError());
+			printf("[ERROR]Recv failed with error: %d\n", WSAGetLastError());
 			closesocket(client->ConnectSocket);
 			return;
 		}
@@ -203,12 +212,12 @@ int Client::send_message(char* message)
 	int i = 0;
 	while (*(message + i) != '\0')
 		i++;
-	if (i > MAX_MESSAGE_LENGTH) {
+	if (i > MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2) {
 		return 1;
 	}
-	int iSendResult = send(this->ConnectSocket, message, MAX_MESSAGE_LENGTH, 0);
+	int iSendResult = send(this->ConnectSocket, message, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 	if (iSendResult == SOCKET_ERROR) {
-		printf("send failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
 		closesocket(this->ConnectSocket);
 		return 1;
 	}

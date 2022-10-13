@@ -15,7 +15,7 @@ Server::Server(char* name, char* port) {
 int Server::create_server(Server* &server, char* name, char* port) {
 
 	if (port == NULL) {
-		printf("Please input port");
+		printf("[ERROR]Please input port");
 		return 1;
 	}
 	int port_num = atoi(port);
@@ -36,14 +36,14 @@ int Server::init_server()
 {
 	int iResult = getaddrinfo(NULL, this->port, &(this->hints), &(this->result));
 	if (iResult != 0) {
-		printf("getaddrinfo failed with error: %d\n", iResult);
+		printf("[ERROR]Getaddrinfo failed with error: %d\n", iResult);
 		return 1;
 	}
 
 	// Create a SOCKET for the server to listen for client connections.
 	this->ListenSocket = socket(this->result->ai_family, this->result->ai_socktype, this->result->ai_protocol);
 	if (this->ListenSocket == INVALID_SOCKET) {
-		printf("socket failed with error: %ld\n", WSAGetLastError());
+		printf("[ERROR]Socket failed with error: %ld\n", WSAGetLastError());
 		freeaddrinfo(this->result);
 		return 1;
 	}
@@ -55,7 +55,7 @@ int Server::bind_server()
 	// Setup the TCP listening socket
 	int iResult = bind(this->ListenSocket, this->result->ai_addr, (int)this->result->ai_addrlen);
 	if (iResult == SOCKET_ERROR) {
-		printf("bind failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Bind failed with error: %d\n", WSAGetLastError());
 		freeaddrinfo(this->result);
 		closesocket(this->ListenSocket);
 		return 1;
@@ -65,7 +65,7 @@ int Server::bind_server()
 
 	iResult = listen(this->ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
-		printf("listen failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Listen failed with error: %d\n", WSAGetLastError());
 		closesocket(this->ListenSocket);
 		return 1;
 	}
@@ -77,7 +77,7 @@ void Server::accept_server(Server* server)
 	// Accept a client socket
 	server->ClientSocket = accept(server->ListenSocket, NULL, NULL);
 	if (server->ClientSocket == INVALID_SOCKET) {
-		printf("accept failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Accept failed with error: %d\n", WSAGetLastError());
 		closesocket(server->ListenSocket);
 		return;
 	}
@@ -87,19 +87,19 @@ void Server::accept_server(Server* server)
 
 	int iSendResult = send(server->ClientSocket, server->name, MAX_NAME_LENGTH, 0);
 	if (iSendResult == SOCKET_ERROR) {
-		printf("send failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
 		closesocket(server->ClientSocket);
 		return;
 	}
 
 	int iResult = recv(server->ClientSocket, server->client_name, MAX_NAME_LENGTH, 0);
 	if (iResult > 0) {
-		printf("Bytes received: %d\n", iResult);
+		/*printf("Bytes received: %d\n", iResult);*/
 	}
 	else if (iResult == 0)
-		printf("Connection closing...\n");
+		printf("[INFO]Connection closing...\n");
 	else {
-		printf("recv failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Recv failed with error: %d\n", WSAGetLastError());
 		closesocket(server->ClientSocket);
 		return;
 	}
@@ -116,17 +116,26 @@ void Server::accept_server(Server* server)
 void Server::listen_message(Server* server)
 {
 	int iResult = 0;
-	char recvbuf[MAX_MESSAGE_LENGTH];
+	char recvbuf[MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2];
 	// Receive until the peer shuts down the connection
 	do {
 
-		iResult = recv(server->ClientSocket, recvbuf, MAX_MESSAGE_LENGTH, 0);
+		iResult = recv(server->ClientSocket, recvbuf, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 		if (iResult > 0) {
 			if (recvbuf[0] == '@') {
 				strcpy_s(server->client_name, MAX_NAME_LENGTH, recvbuf + 1);
 			}
 			else if (recvbuf[0] == '#') {
-				printf("%s: %s\n", server->client_name, recvbuf + 1);
+				int i = 0;
+				char timestamp[MAX_TIME_LENGTH];
+				memset(timestamp, 0, MAX_TIME_LENGTH);
+				while (i < MAX_MESSAGE_LENGTH + 1) {
+					if (recvbuf[i] == '\0' && recvbuf[i + 1] == '^')
+						break;
+					i++;
+				}
+				strcpy_s(timestamp, MAX_TIME_LENGTH,recvbuf + i + 2);
+				printf("%s@%s: %s\n", timestamp, server->client_name, recvbuf + 1);
 			}	
 			else if (recvbuf[0] == '$') {
 				printf("[INFO]Client will disconnect, current server will restart.\n");
@@ -160,9 +169,9 @@ void Server::listen_message(Server* server)
 			}
 		}
 		else if (iResult == 0)
-			printf("Connection closing...\n");
+			printf("[INFO]Connection closing...\n");
 		else {
-			printf("recv failed with error: %d\n", WSAGetLastError());
+			printf("[ERROR]Recv failed with error: %d\n", WSAGetLastError());
 			closesocket(server->ClientSocket);
 			return;
 		}
@@ -179,12 +188,12 @@ int Server::send_message(char* message)
 	int i = 0;
 	while (*(message + i) != '\0')
 		i++;
-	if (i > MAX_MESSAGE_LENGTH) {
+	if (i > MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2) {
 		return 1;
 	}
-	int iSendResult = send(this->ClientSocket, message, MAX_MESSAGE_LENGTH, 0);
+	int iSendResult = send(this->ClientSocket, message, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 	if (iSendResult == SOCKET_ERROR) {
-		printf("send failed with error: %d\n", WSAGetLastError());
+		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
 		closesocket(this->ClientSocket);
 		return 1;
 	}
