@@ -227,6 +227,7 @@ int bash() {
 				iResult = client->send_message(close_command);
 				if (iResult != 0) {
 					printf("[ERROR]Disconnect command can not be sent to server.\n");
+					continue;
 				} else {
 					printf("[SUCCESS]Disconnect command has been sent to server.\n");
 				}
@@ -301,7 +302,23 @@ int bash() {
 			else {
 				continue;
 			}
-		} else if (buf[i + 1] == 'n') {
+		}
+		else if (buf[i + 1] == 'r') {
+			if (buf[i + 2] != ' ' && buf[i + 2] != '\t' && buf[i + 2] != '\n' && buf[i + 2] != '\0') {
+				printf("[ERROR]Please input correct command, start with '-'.\n");
+				continue;
+			}
+			printf("[INFO]Would like to restart and close all connections?(y/n)\n");
+			char a = 0;
+			scanf("%c", &a);
+			if (a == 'y' || a == 'Y') {
+				return 1;
+			}
+			else {
+				continue;
+			}
+		}
+		else if (buf[i + 1] == 'n') {
 			if (buf[i + 2] != ' ' && buf[i + 2] != '\t' && buf[i + 2] != '\n') {
 				printf("[ERROR]Please input correct command, start with '-'.\n");
 				continue;
@@ -441,6 +458,8 @@ int main(int argc, char* argv[]) {
 	printf("\t-p <server-port-yourself>\n\n");
 	printf("List current status: \n");
 	printf("\t-l\n\n");
+	printf("Restart bash: \n");
+	printf("\t-r\n\n");
 	while (true) {
 		int i = bash();
 		if (i == -1) {
