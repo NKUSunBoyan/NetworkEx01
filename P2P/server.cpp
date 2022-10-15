@@ -2,6 +2,11 @@
 
 Server::Server(char* name, char* port) {
 
+	// Initalize memory
+	memset(this->name, 0, MAX_NAME_LENGTH);
+	memset(this->client_name, 0, MAX_NAME_LENGTH);
+	memset(this->port, 0, MAX_PORT_LENGTH);
+
 	strcpy_s(this->name, MAX_NAME_LENGTH, name);
 	strcpy_s(this->port, MAX_PORT_LENGTH, port);
 
@@ -14,10 +19,15 @@ Server::Server(char* name, char* port) {
 
 int Server::create_server(Server* &server, char* name, char* port) {
 
+	// Use default port
 	if (port == NULL) {
-		printf("[ERROR]Please input port");
-		return 1;
+		char default_port[6] = DEFAULT_PORT;
+		printf("[INFO]Created server with deault port: %s.\n", default_port);
+		server = new Server(name, default_port);
+		return 0;
 	}
+
+	// Resolve port
 	int port_num = atoi(port);
 	if (port_num == 0) {
 		return 1;
@@ -29,11 +39,15 @@ int Server::create_server(Server* &server, char* name, char* port) {
 		return 1;
 	}
 
+	// Create server with ref pointer
 	server = new Server(name, port);
+	return 0;
 }
 
 int Server::init_server()
 {
+
+	// Setup addrinfo
 	int iResult = getaddrinfo(NULL, this->port, &(this->hints), &(this->result));
 	if (iResult != 0) {
 		printf("[ERROR]Getaddrinfo failed with error: %d\n", iResult);
@@ -52,7 +66,8 @@ int Server::init_server()
 
 int Server::bind_server()
 {
-	// Setup the TCP listening socket
+	
+	// Bind with this addr
 	int iResult = bind(this->ListenSocket, this->result->ai_addr, (int)this->result->ai_addrlen);
 	if (iResult == SOCKET_ERROR) {
 		printf("[ERROR]Bind failed with error: %d\n", WSAGetLastError());
@@ -63,6 +78,7 @@ int Server::bind_server()
 
 	freeaddrinfo(this->result);
 
+	// Setup the TCP listening socket
 	iResult = listen(this->ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
 		printf("[ERROR]Listen failed with error: %d\n", WSAGetLastError());
@@ -74,6 +90,7 @@ int Server::bind_server()
 
 void Server::accept_server(Server* server)
 {
+	
 	// Accept a client socket
 	server->ClientSocket = accept(server->ListenSocket, NULL, NULL);
 	if (server->ClientSocket == INVALID_SOCKET) {
@@ -85,6 +102,7 @@ void Server::accept_server(Server* server)
 	// No longer need server socket
 	closesocket(server->ListenSocket);
 
+	// Send server's name to client
 	int iSendResult = send(server->ClientSocket, server->name, MAX_NAME_LENGTH, 0);
 	if (iSendResult == SOCKET_ERROR) {
 		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
@@ -92,9 +110,13 @@ void Server::accept_server(Server* server)
 		return;
 	}
 
-	int iResult = recv(server->ClientSocket, server->client_name, MAX_NAME_LENGTH, 0);
+	// Recieve client's name, as a handshake
+	char name_buf[MAX_NAME_LENGTH];
+	memset(name_buf, 0, MAX_NAME_LENGTH);
+	int iResult = recv(server->ClientSocket, name_buf, MAX_NAME_LENGTH, 0);
 	if (iResult > 0) {
 		/*printf("Bytes received: %d\n", iResult);*/
+		strcpy_s(server->client_name, MAX_NAME_LENGTH, name_buf);
 	}
 	else if (iResult == 0)
 		printf("[INFO]Connection closing...\n");
@@ -104,27 +126,36 @@ void Server::accept_server(Server* server)
 		return;
 	}
 
+	// Set status
 	server->isConnected = true;
 	printf("[SUCCESS]Setup connection successfully!\n");
 
+	// Start listen message thread
 	std::thread listen_thread(Server::listen_message, server);
 	listen_thread.detach();
-
 	return;
 }
 
 void Server::listen_message(Server* server)
 {
 	int iResult = 0;
+	// Max size: MESSAGE "^" TIME
 	char recvbuf[MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2];
+	
 	// Receive until the peer shuts down the connection
 	do {
 
+		// Zero memory
+		memset(recvbuf, 0, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2);
 		iResult = recv(server->ClientSocket, recvbuf, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 		if (iResult > 0) {
+
+			// Start with '@', change name
 			if (recvbuf[0] == '@') {
 				strcpy_s(server->client_name, MAX_NAME_LENGTH, recvbuf + 1);
 			}
+
+			// Start with '#', peer's messgae with time stamp
 			else if (recvbuf[0] == '#') {
 				int i = 0;
 				char timestamp[MAX_TIME_LENGTH];
@@ -134,9 +165,15 @@ void Server::listen_message(Server* server)
 						break;
 					i++;
 				}
-				strcpy_s(timestamp, MAX_TIME_LENGTH,recvbuf + i + 2);
+				if (recvbuf[i + 2] == '\0') {
+					printf("[ERROR]Recieve wrong timestamp.\n");
+					continue;
+				}
+				strcpy_s(timestamp, MAX_TIME_LENGTH, recvbuf + i + 2);
 				printf("%s@%s: %s\n", timestamp, server->client_name, recvbuf + 1);
 			}	
+
+			// Start with '$', peer will disconnect
 			else if (recvbuf[0] == '$') {
 				printf("[INFO]Client will disconnect, current server will restart.\n");
 				char reply_disconnect[2] = { '%', '\0' };
@@ -162,6 +199,8 @@ void Server::listen_message(Server* server)
 					return;
 				}
 			}
+
+			// Start with '%', relpy after '$', now this server can disconnect and clean
 			else if (recvbuf[0] == '%') {
 				printf("[INFO]Client has closed, current server will close.\n");
 				disconnect = true;
@@ -182,15 +221,12 @@ void Server::listen_message(Server* server)
 
 int Server::send_message(char* message)
 {
+
 	if (message == NULL) {
+		printf("[ERROR]You can not send empty message.\n");
 		return 1;
 	}
-	int i = 0;
-	while (*(message + i) != '\0')
-		i++;
-	if (i > MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2) {
-		return 1;
-	}
+
 	int iSendResult = send(this->ClientSocket, message, MAX_MESSAGE_LENGTH + MAX_TIME_LENGTH + 2, 0);
 	if (iSendResult == SOCKET_ERROR) {
 		printf("[ERROR]Send failed with error: %d\n", WSAGetLastError());
@@ -220,7 +256,7 @@ int Server::close_server()
 int Server::change_name(char* name)
 {
 	if (name == NULL || name[0] == '\0') {
-		const char* default_server_name = "Default server\0";
+		const char* default_server_name = DEFAULT_SERVER_NAME;
 		strcpy_s(this->name, MAX_NAME_LENGTH, default_server_name);
 	}
 	else {

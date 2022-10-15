@@ -5,8 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#define DEFAULT_BUFLEN 512
-#define DEFAULT_PORT "27015"
+#define DEFAULT_PORT "27010"
 #define DEFAULT_SERVER_NAME "Alice"
 #define DEFAULT_CLIENT_NAME "Bob"
 #define MAX_NAME_LENGTH 100
@@ -14,6 +13,9 @@
 #define MAX_IP_LENGTH 16
 #define MAX_MESSAGE_LENGTH 500
 #define MAX_TIME_LENGTH 30
+#define MAX_CLIENT_NUM 10
+#define DEFAULT_ROOMSERVER_NAME "RoomServer"
+#define MAX_ID_LENGTH 3
 
 #include <windows.h>
 #include <winsock2.h>
